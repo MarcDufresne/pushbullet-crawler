@@ -2,15 +2,16 @@
 #  -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals, absolute_import
+from datetime import datetime
 import re
-import config
-
 from time import time, sleep
+
+from bs4 import BeautifulSoup
 from pushbullet import PushBullet
 import requests
-
 from requests.exceptions import RequestException
-from bs4 import BeautifulSoup
+
+import config
 
 
 HEADERS = {
@@ -21,6 +22,9 @@ HEADERS = {
     'Pragma': 'no-cache',
     'Expires': '0'
 }
+
+REGEX_FOUND_MESSAGE = "Regex found"
+REGEX_NOT_FOUND_MESSAGE = "Regex not found"
 
 
 def get_response_from_site(site_url):
@@ -62,6 +66,7 @@ def main():
     counter = 0
 
     while True:
+        print "\n", datetime.now()
         response = get_response_from_site(site_url)
         site_content = BeautifulSoup(response.text)
         matching_content = site_content.find_all(text=regex_to_test)
@@ -69,19 +74,18 @@ def main():
 
         if match_if_present:
             if matching_content:
-                print "Regex found!"
+                print REGEX_FOUND_MESSAGE
                 send_notification(pushbullet_api_key, site_url)
                 break
-            print "Regex not found on site"
+            print REGEX_NOT_FOUND_MESSAGE
 
         else:
             if not matching_content:
-                print "Regex not found!"
+                print REGEX_NOT_FOUND_MESSAGE
                 send_notification(pushbullet_api_key, site_url)
                 break
-            print "Regex found on site"
+            print REGEX_FOUND_MESSAGE
 
-        print ""
         counter += 1
         sleep(start_time + counter * interval - time())
 
