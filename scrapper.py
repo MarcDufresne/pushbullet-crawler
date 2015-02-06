@@ -2,6 +2,7 @@
 #  -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals, absolute_import
+import argparse
 from datetime import datetime
 import re
 from time import time, sleep
@@ -13,6 +14,13 @@ from requests.exceptions import RequestException
 
 import config
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument('-r', '--regex', dest='regex', help='Regex to match')
+parser.add_argument('-u', '--url', dest='url', help='URL to check')
+parser.add_argument('-m', '--mode', dest='mode', help='Mode for matching (FOUND or NOT_FOUND')
+
+args = parser.parse_args()
 
 HEADERS = {
     'User-Agent':
@@ -43,13 +51,13 @@ def get_response_from_site(site_url):
     return site_response
 
 
-def send_notification(api_key, site_url):
+def send_notification(api_key, page_title, site_url):
 
     print "Sending PushBullet notification"
 
     pb_client = PushBullet(api_key)
 
-    pb_client.push_link("{url} was updated!".format(url=site_url), site_url)
+    pb_client.push_link("Update on {title}!".format(title=page_title), site_url)
 
 
 def main():
@@ -57,37 +65,43 @@ def main():
     config.check_config_file()
     app_config = config.load_config_file()
     pushbullet_api_key = app_config.get('api_key')
-    regex_to_test = re.compile(app_config.get('regex'))
-    site_url = app_config.get('site_to_parse')
-    match_if_present = False if app_config.get('match_mode') == 'NOT_FOUND' else True
 
-    start_time = time()
-    interval = 10
-    counter = 0
+    regex_to_test = getattr(args, 'regex', app_config.get('regex'))
+    if regex_to_test:
+        regex_to_test = re.compile(regex_to_test)
+    site_url = getattr(args, 'url', app_config.get('site_to_parse'))
+    if getattr(args, 'mode', False):
+        match_if_present = False if getattr(args, 'mode', None) == 'NOT_FOUND' else True
+    else:
+        match_if_present = False if app_config.get('match_mode') == 'NOT_FOUND' else True
+
+    if not pushbullet_api_key or not regex_to_test or not site_url:
+        print "Some config values or arguments not given. Exiting..."
+        exit(-1)
 
     while True:
         print "\n", datetime.now()
         response = get_response_from_site(site_url)
         site_content = BeautifulSoup(response.text)
+        page_title = site_content.find('title').text
         matching_content = site_content.find_all(text=regex_to_test)
         matching_content += site_content.find_all('a', href=regex_to_test)
 
         if match_if_present:
             if matching_content:
                 print REGEX_FOUND_MESSAGE
-                send_notification(pushbullet_api_key, site_url)
+                send_notification(pushbullet_api_key, page_title, site_url)
                 break
             print REGEX_NOT_FOUND_MESSAGE
 
         else:
             if not matching_content:
                 print REGEX_NOT_FOUND_MESSAGE
-                send_notification(pushbullet_api_key, site_url)
+                send_notification(pushbullet_api_key, page_title, site_url)
                 break
             print REGEX_FOUND_MESSAGE
 
-        counter += 1
-        sleep(start_time + counter * interval - time())
+        sleep(10)
 
     return
 
