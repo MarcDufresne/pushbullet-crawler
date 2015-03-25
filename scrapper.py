@@ -2,25 +2,16 @@
 #  -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals, absolute_import
-import argparse
+
 from datetime import datetime
 import re
-from time import time, sleep
+from time import sleep
+from urlparse import urlparse
 
 from bs4 import BeautifulSoup
 from pushbullet import PushBullet
 import requests
 from requests.exceptions import RequestException
-
-import config
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument('-r', '--regex', dest='regex', help='Regex to match')
-parser.add_argument('-u', '--url', dest='url', help='URL to check')
-parser.add_argument('-m', '--mode', dest='mode', help='Mode for matching (FOUND or NOT_FOUND')
-
-args = parser.parse_args()
 
 HEADERS = {
     'User-Agent':
@@ -31,8 +22,7 @@ HEADERS = {
     'Expires': '0'
 }
 
-REGEX_FOUND_MESSAGE = "Regex found"
-REGEX_NOT_FOUND_MESSAGE = "Regex not found"
+PUSHBULLET_API_KEY = "API_KEY_HERE"
 
 
 def get_response_from_site(site_url):
@@ -44,6 +34,7 @@ def get_response_from_site(site_url):
         site_response = requests.get(site_url, headers=HEADERS, timeout=30)
     except RequestException as e:
         print "Got an error trying to reach site.", e.message
+        send_error_notification(content="Got an error trying to reach site.\n{}".format(e.message))
         exit(-1)
 
     print "Got data from site"
@@ -51,57 +42,71 @@ def get_response_from_site(site_url):
     return site_response
 
 
-def send_notification(api_key, page_title, site_url):
+def send_error_notification(content):
+
+    print "Got error, sending PB message"
+
+    pb_client = PushBullet(PUSHBULLET_API_KEY)
+
+    pb_client.push_note("Crawler Error", content)
+
+
+def send_notification(detail_page_url, content=None):
 
     print "Sending PushBullet notification"
 
-    pb_client = PushBullet(api_key)
+    pb_client = PushBullet(PUSHBULLET_API_KEY)
 
-    pb_client.push_link("Update on {title}!".format(title=page_title), site_url)
+    if content:
+        pb_client.push_link("MacBook found!", detail_page_url, body=content)
+    else:
+        pb_client.push_link("MacBook found!", detail_page_url)
 
 
 def main():
 
-    config.check_config_file()
-    app_config = config.load_config_file()
-    pushbullet_api_key = app_config.get('api_key')
+    found_products_url = []
 
-    regex_to_test = getattr(args, 'regex', app_config.get('regex'))
-    if regex_to_test:
-        regex_to_test = re.compile(regex_to_test)
-    site_url = getattr(args, 'url', app_config.get('site_to_parse'))
-    if getattr(args, 'mode', False):
-        match_if_present = False if getattr(args, 'mode', None) == 'NOT_FOUND' else True
-    else:
-        match_if_present = False if app_config.get('match_mode') == 'NOT_FOUND' else True
+    # RAM and SSD specs regex
+    ram_regex = re.compile(r'.*16[gG][bB].*')
+    ssd_regex = re.compile(r'.*2[0-9]{2}[gG][bB].*')
 
-    if not pushbullet_api_key or not regex_to_test or not site_url:
-        print "Some config values or arguments not given. Exiting..."
-        exit(-1)
+    site_urls = [
+        'http://store.apple.com/ca/browse/home/specialdeals/mac/macbook_pro',
+    ]
 
     while True:
         print "\n", datetime.now()
-        response = get_response_from_site(site_url)
-        site_content = BeautifulSoup(response.text)
-        page_title = site_content.find('title').text
-        matching_content = site_content.find_all(text=regex_to_test)
-        matching_content += site_content.find_all('a', href=regex_to_test)
+        for url in site_urls:
+            response = get_response_from_site(url)
+            site_content = BeautifulSoup(response.text)
+            products = site_content.find_all('tr', class_="product")
+            domain = urlparse(url).hostname
 
-        if match_if_present:
-            if matching_content:
-                print REGEX_FOUND_MESSAGE
-                send_notification(pushbullet_api_key, page_title, site_url)
-                break
-            print REGEX_NOT_FOUND_MESSAGE
+            print "{} products found".format(len(products))
 
-        else:
-            if not matching_content:
-                print REGEX_NOT_FOUND_MESSAGE
-                send_notification(pushbullet_api_key, page_title, site_url)
-                break
-            print REGEX_FOUND_MESSAGE
+            for product in products:
+                if product.find_all(text=ram_regex) and product.find_all(text=ssd_regex):
+                    details_page_url = 'http://{}{}'.format(domain, product.find('a').attrs['href'])
+                    if details_page_url in found_products_url:
+                        print "Found already matched product"
+                        continue
 
-        sleep(10)
+                    print "Match found"
+                    price = product.find('span', itemprop="price").text.replace('\t', '').replace('\n', '')
+                    product_specs = product.find('td', class_="specs").text.replace('\r', '')
+                    product_specs = re.sub('\n{3}', ' ', product_specs)
+                    product_specs = re.sub(' {2,}', ' ', product_specs)
+                    product_specs = re.sub('\n ', '\n', product_specs)
+                    product_specs = product_specs.strip()
+
+                    content = "{}\n{}".format(price, product_specs)
+
+                    send_notification(details_page_url, content=content)
+
+                    found_products_url.append(details_page_url)
+
+        sleep(300)
 
     return
 
