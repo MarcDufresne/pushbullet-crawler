@@ -6,7 +6,6 @@ from __future__ import unicode_literals, absolute_import
 from datetime import datetime
 import re
 from time import sleep
-from urlparse import urlparse
 
 from bs4 import BeautifulSoup
 from pushbullet import PushBullet
@@ -58,21 +57,18 @@ def send_notification(detail_page_url, content=None):
     pb_client = PushBullet(PUSHBULLET_API_KEY)
 
     if content:
-        pb_client.push_link("MacBook found!", detail_page_url, body=content)
+        pb_client.push_link("Stock found!!", detail_page_url, body=content)
     else:
-        pb_client.push_link("MacBook found!", detail_page_url)
+        pb_client.push_link("Stock found!", detail_page_url)
 
 
 def main():
 
-    found_products_url = []
-
-    # RAM and SSD specs regex
-    ram_regex = re.compile(r'.*16[gG][bB].*')
-    ssd_regex = re.compile(r'.*2[0-9]{2}[gG][bB].*')
+    # In stock regex
+    in_stock_regex = re.compile(r'.*[Ii]n [Ss]tock.*')
 
     site_urls = [
-        'http://store.apple.com/ca/browse/home/specialdeals/mac/macbook_pro',
+        'http://www.amazon.ca/New-Nintendo-3DS-XL-Limited/dp/B00S8IGG4U/',
     ]
 
     while True:
@@ -80,31 +76,15 @@ def main():
         for url in site_urls:
             response = get_response_from_site(url)
             site_content = BeautifulSoup(response.text)
-            products = site_content.find_all('tr', class_="product")
-            domain = urlparse(url).hostname
+            availability = site_content.find('div', id="availability_feature_div")
 
-            print "{} products found".format(len(products))
+            print "Products availability found"
 
-            for product in products:
-                if product.find_all(text=ram_regex) and product.find_all(text=ssd_regex):
-                    details_page_url = 'http://{}{}'.format(domain, product.find('a').attrs['href'])
-                    if details_page_url in found_products_url:
-                        print "Found already matched product"
-                        continue
+            if availability.find(text=in_stock_regex):
 
-                    print "Match found"
-                    price = product.find('span', itemprop="price").text.replace('\t', '').replace('\n', '')
-                    product_specs = product.find('td', class_="specs").text.replace('\r', '')
-                    product_specs = re.sub('\n{3}', ' ', product_specs)
-                    product_specs = re.sub(' {2,}', ' ', product_specs)
-                    product_specs = re.sub('\n ', '\n', product_specs)
-                    product_specs = product_specs.strip()
+                product_name = site_content.find('span', id="productTitle").text
 
-                    content = "{}\n{}".format(price, product_specs)
-
-                    send_notification(details_page_url, content=content)
-
-                    found_products_url.append(details_page_url)
+                send_notification(url, content="{} is In Stock!".format(product_name))
 
         sleep(300)
 
