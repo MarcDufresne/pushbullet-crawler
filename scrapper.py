@@ -105,7 +105,7 @@ def main():
 
         if price != current_prices.get(gid):
             send_notification(api_key, page_title, site_url, body=text_price)
-            print "New price found for {}, {}".format(page_title, text_price)
+            print "New price found for {}, {}".format(page_title.encode('ascii', 'ignore'), text_price)
             current_prices[gid] = price
         else:
             print "Price hasn't changed, still {}".format(text_price)
