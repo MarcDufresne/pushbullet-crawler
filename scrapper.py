@@ -141,6 +141,8 @@ def write_current_prices(prices, use_keybin=False):
 
 def main():
 
+    print "\n", "Starting crawler"
+
     region = args.region
     game_ids = args.game_id.split(',')
     api_key = args.key
