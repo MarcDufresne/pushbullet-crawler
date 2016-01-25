@@ -95,6 +95,7 @@ def get_keybin_data():
         keybin_resp.raise_for_status()
         full_store = keybin_resp.json()
         content = full_store.get('value')
+        print "Got value from Keybin"
     except requests.HTTPError as e:
         print "Could not read data from Keybin, {}".format(e.message)
         content = None
@@ -111,6 +112,7 @@ def write_keybin_data(data):
     )
     try:
         keybin_resp.raise_for_status()
+        print "Wrote to Keybin"
     except requests.HTTPError as e:
         print "Could not save data to Keybin, {}".format(e.message)
 
