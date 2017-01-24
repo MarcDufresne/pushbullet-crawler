@@ -3,7 +3,7 @@ backports.ssl-match-hostname==3.5.0.1
 beautifulsoup4==4.5.3
 lxml==3.7.2
 pushbullet.py==0.10.0
-python-magic==0.4.6
+python-magic==0.4.12
 requests==2.13.0
 six==1.10.0
 websocket-client==0.40.0
