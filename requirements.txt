@@ -1,7 +1,7 @@
 argparse==1.4.0
 backports.ssl-match-hostname==3.4.0.2
 beautifulsoup4==4.3.2
-lxml==3.4.0
+lxml==3.7.2
 pushbullet.py==0.10.0
 python-magic==0.4.6
 requests==2.4.1
